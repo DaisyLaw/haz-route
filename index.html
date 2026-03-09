@@ -1,0 +1,1824 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>HAZ-ROUTE | Chemical Triage Engine | Montgomery, AL</title>
+
+  <!-- Leaflet.js -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
+
+  <!-- Google Fonts: Share Tech Mono (data readouts) + Barlow Condensed (headers) + Barlow (body) -->
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@400;500&display=swap" rel="stylesheet"/>
+
+  <style>
+    /* =====================================================
+       CSS DESIGN SYSTEM — HAZ-ROUTE Emergency Tool
+       Aesthetic: Industrial Ops Center / Tactical Night Mode
+       High-contrast, high-stress, field-ready
+       ===================================================== */
+    :root {
+      --bg-primary:   #080B0E;
+      --bg-secondary: #0E1318;
+      --bg-panel:     #111720;
+      --bg-card:      #181F2C;
+      --bg-input:     #0C1016;
+
+      --accent-yellow: #F5C518;
+      --accent-red:    #FF3131;
+      --accent-cyan:   #00D4FF;
+      --accent-green:  #39FF14;
+      --accent-orange: #FF7B00;
+      --accent-violet: #B070FF;
+
+      --text-primary:   #E8ECF0;
+      --text-secondary: #7A8FA8;
+      --text-dim:       #3D4E60;
+
+      --border-subtle: #161F2C;
+      --border-active: #243244;
+
+      --font-display: 'Barlow Condensed', sans-serif;
+      --font-mono:    'Share Tech Mono', monospace;
+      --font-body:    'Barlow', sans-serif;
+
+      --panel-w:     310px;
+      --header-h:    54px;
+      --radius-sm:   4px;
+      --radius-md:   8px;
+
+      --t-fast: 0.15s ease;
+      --t-med:  0.3s ease;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      width: 100%; height: 100%;
+      overflow: hidden;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      font-family: var(--font-body);
+      font-size: 14px;
+    }
+
+    /* =====================================================
+       LAYOUT — 3-column grid
+       ===================================================== */
+    #app {
+      display: grid;
+      grid-template-rows: var(--header-h) 1fr;
+      grid-template-columns: var(--panel-w) 1fr var(--panel-w);
+      width: 100vw;
+      height: 100vh;
+    }
+
+    /* =====================================================
+       HEADER
+       ===================================================== */
+    #header {
+      grid-column: 1 / -1;
+      background: var(--bg-secondary);
+      border-bottom: 2px solid var(--accent-yellow);
+      display: flex;
+      align-items: center;
+      padding: 0 16px;
+      gap: 14px;
+      z-index: 1000;
+    }
+
+    .hdr-logo-icon {
+      width: 34px; height: 34px;
+      background: var(--accent-yellow);
+      border-radius: var(--radius-sm);
+      display: flex; align-items: center; justify-content: center;
+      color: #000; font-size: 17px;
+      flex-shrink: 0;
+    }
+
+    .hdr-title {
+      font-family: var(--font-display);
+      font-weight: 800;
+      font-size: 21px;
+      letter-spacing: 4px;
+      color: var(--accent-yellow);
+      text-transform: uppercase;
+      line-height: 1;
+    }
+
+    .hdr-subtitle {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-secondary);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    .hdr-div {
+      width: 1px; height: 32px;
+      background: var(--border-active);
+      margin: 0 4px;
+    }
+
+    .hdr-status {
+      display: flex; align-items: center; gap: 7px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--accent-green);
+      box-shadow: 0 0 7px var(--accent-green);
+      animation: blink-green 2.5s infinite;
+    }
+    .status-dot.alert {
+      background: var(--accent-red);
+      box-shadow: 0 0 7px var(--accent-red);
+      animation: blink-red 0.9s infinite;
+    }
+
+    @keyframes blink-green {
+      0%,100% { opacity:1; } 50% { opacity:0.35; }
+    }
+    @keyframes blink-red {
+      0%,100% { opacity:1; transform:scale(1); } 50% { opacity:0.55; transform:scale(1.3); }
+    }
+
+    .hdr-spacer { flex: 1; }
+
+    .hdr-badge {
+      background: var(--accent-red);
+      color: #fff;
+      font-family: var(--font-display);
+      font-size: 10px; font-weight: 700;
+      letter-spacing: 2px;
+      padding: 3px 10px;
+      border-radius: 2px;
+    }
+
+    .hdr-clock {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-secondary);
+      text-align: right;
+      line-height: 1.5;
+    }
+    .hdr-clock span { font-size: 9px; color: var(--text-dim); display: block; }
+
+    /* =====================================================
+       PANELS — Shared
+       ===================================================== */
+    #panel-left, #panel-right {
+      background: var(--bg-panel);
+      overflow-y: auto; overflow-x: hidden;
+      display: flex; flex-direction: column;
+    }
+    #panel-left  { border-right: 1px solid var(--border-subtle); }
+    #panel-right { border-left:  1px solid var(--border-subtle); }
+
+    #panel-left::-webkit-scrollbar,
+    #panel-right::-webkit-scrollbar { width: 3px; }
+    #panel-left::-webkit-scrollbar-track,
+    #panel-right::-webkit-scrollbar-track { background: var(--bg-primary); }
+    #panel-left::-webkit-scrollbar-thumb,
+    #panel-right::-webkit-scrollbar-thumb { background: var(--border-active); border-radius: 2px; }
+
+    .panel-section {
+      padding: 14px 14px 16px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .panel-section:last-child { border-bottom: none; flex: 1; }
+
+    .section-header {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .section-num {
+      width: 20px; height: 20px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--font-display);
+      font-weight: 800; font-size: 11px;
+      flex-shrink: 0;
+    }
+
+    .section-title {
+      font-family: var(--font-display);
+      font-weight: 700; font-size: 12px;
+      letter-spacing: 2.5px; text-transform: uppercase;
+      color: var(--text-primary);
+      display: flex; align-items: center; gap: 6px;
+    }
+
+    /* =====================================================
+       FILTER FIELDSETS
+       ===================================================== */
+    fieldset {
+      border: 1px solid var(--border-active);
+      border-radius: var(--radius-sm);
+      padding: 8px 10px 10px;
+      margin-bottom: 8px;
+      background: var(--bg-input);
+    }
+    legend {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--accent-yellow);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      padding: 0 6px;
+    }
+
+    .filter-select {
+      width: 100%; min-height: 44px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-active);
+      border-radius: var(--radius-sm);
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      padding: 10px 32px 10px 12px;
+      cursor: pointer;
+      appearance: none; -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23F5C518' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      transition: border-color var(--t-fast);
+    }
+    .filter-select:focus { outline: none; border-color: var(--accent-yellow); }
+    .filter-select option { background: var(--bg-card); }
+
+    /* =====================================================
+       CHEMICAL RESULT CARDS
+       ===================================================== */
+    #chemical-results { display: flex; flex-direction: column; gap: 7px; }
+
+    .chem-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-active);
+      border-left: 3px solid var(--card-accent, var(--accent-cyan));
+      border-radius: var(--radius-md);
+      padding: 11px 12px;
+      cursor: pointer;
+      transition: all var(--t-med);
+      position: relative;
+    }
+    .chem-card:hover { border-color: var(--accent-yellow); transform: translateX(2px); }
+    .chem-card.selected { border-color: var(--accent-yellow); background: #1A2236; }
+
+    .chem-name {
+      font-family: var(--font-display); font-weight: 700; font-size: 15px;
+      color: var(--text-primary);
+    }
+    .chem-formula {
+      font-family: var(--font-mono); font-size: 10px;
+      color: var(--accent-cyan); margin-bottom: 7px;
+    }
+    .chem-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 7px; }
+    .ctag {
+      font-family: var(--font-mono); font-size: 9px;
+      padding: 2px 6px; border-radius: 2px;
+      background: rgba(0,212,255,0.1);
+      color: var(--accent-cyan);
+      border: 1px solid rgba(0,212,255,0.25);
+    }
+    .chem-meta {
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .chem-hazclass { font-family: var(--font-mono); font-size: 9px; color: var(--text-dim); }
+    .ppe-badge {
+      font-family: var(--font-display); font-size: 9px; font-weight: 700;
+      letter-spacing: 1px; padding: 2px 7px; border-radius: 2px;
+    }
+    .ppe-a { background: var(--accent-red);    color: #fff; }
+    .ppe-b { background: var(--accent-orange); color: #fff; }
+    .ppe-c { background: #555;                 color: #fff; }
+
+    .no-match {
+      text-align: center;
+      font-family: var(--font-mono); font-size: 11px;
+      color: var(--text-dim);
+      padding: 18px;
+      border: 1px dashed var(--border-active);
+      border-radius: var(--radius-md);
+    }
+    .waiting-msg {
+      text-align: center;
+      font-family: var(--font-mono); font-size: 11px;
+      color: var(--text-secondary);
+      padding: 18px; opacity: 0.6;
+      line-height: 1.8;
+    }
+
+    /* =====================================================
+       INCIDENT LOCATION SECTION
+       ===================================================== */
+    .instr-box {
+      background: rgba(245,197,24,0.07);
+      border: 1px solid rgba(245,197,24,0.25);
+      border-radius: var(--radius-md);
+      padding: 11px;
+      font-family: var(--font-mono); font-size: 11px;
+      color: var(--accent-yellow);
+      line-height: 1.8;
+    }
+    .instr-box i { margin-right: 5px; }
+
+    #incident-coords {
+      font-family: var(--font-mono); font-size: 11px;
+      color: var(--accent-green);
+      margin-top: 8px; min-height: 16px;
+    }
+
+    .btn-reset {
+      width: 100%; min-height: 44px;
+      background: transparent;
+      border: 1px solid var(--accent-red);
+      color: var(--accent-red);
+      font-family: var(--font-display); font-weight: 700; font-size: 12px;
+      letter-spacing: 2px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      margin-top: 10px;
+      transition: all var(--t-fast);
+    }
+    .btn-reset:hover { background: var(--accent-red); color: #fff; }
+
+    /* =====================================================
+       MAP
+       ===================================================== */
+    #map-container { position: relative; background: #070B0F; }
+    #map { width: 100%; height: 100%; }
+
+    /* Dark tile override */
+    .leaflet-tile { filter: brightness(0.7) saturate(0.5); }
+
+    /* Map status bar */
+    #map-statusbar {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      z-index: 800; pointer-events: none;
+      background: rgba(8,11,14,0.92);
+      border-top: 1px solid var(--border-active);
+      display: flex; align-items: center; gap: 18px;
+      padding: 7px 16px;
+      font-family: var(--font-mono); font-size: 10px; color: var(--text-secondary);
+    }
+    .msb { display: flex; align-items: center; gap: 5px; }
+    .msb-lbl { color: var(--text-dim); }
+    .msb-val { color: var(--accent-cyan); }
+    .msb-val.red   { color: var(--accent-red); }
+    .msb-val.green { color: var(--accent-green); }
+
+    /* Custom Leaflet tooltip styles */
+    .lbl-incident {
+      background: var(--accent-red) !important; color: #fff !important;
+      border: none !important; border-radius: 2px !important;
+      font-family: var(--font-mono) !important; font-size: 10px !important;
+      font-weight: bold !important;
+    }
+    .lbl-hospital {
+      background: rgba(57,255,20,0.92) !important; color: #000 !important;
+      border: none !important; border-radius: 2px !important;
+      font-family: var(--font-mono) !important; font-size: 10px !important;
+      font-weight: bold !important;
+    }
+
+    /* =====================================================
+       RIGHT PANEL — Chemical Detail
+       ===================================================== */
+    .sum-row {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      padding: 7px 9px;
+      background: var(--bg-input);
+      border-radius: var(--radius-sm);
+      margin-bottom: 5px;
+    }
+    .sum-lbl {
+      font-family: var(--font-mono); font-size: 9px;
+      color: var(--text-secondary);
+      letter-spacing: 1px; text-transform: uppercase;
+    }
+    .sum-val {
+      font-family: var(--font-mono); font-size: 11px;
+      color: var(--text-primary);
+      text-align: right; max-width: 165px;
+    }
+    .sum-val.yellow { color: var(--accent-yellow); }
+    .sum-val.red    { color: var(--accent-red);    }
+    .sum-val.cyan   { color: var(--accent-cyan);   }
+    .sum-val.green  { color: var(--accent-green);  }
+
+    .data-div { height: 1px; background: var(--border-subtle); margin: 8px 0; }
+
+    .radius-num {
+      font-family: var(--font-display); font-weight: 800;
+      font-size: 26px; color: var(--accent-red); line-height: 1;
+    }
+    .radius-unit { font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); }
+
+    .symptom-box {
+      background: rgba(255,49,49,0.07);
+      border: 1px solid rgba(255,49,49,0.35);
+      border-radius: var(--radius-md); padding: 10px;
+      margin-bottom: 8px;
+    }
+    .symptom-box-title {
+      font-family: var(--font-display); font-weight: 700; font-size: 10px;
+      letter-spacing: 2px; color: var(--accent-red); text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .symp-list { list-style: none; }
+    .symp-list li {
+      font-family: var(--font-body); font-size: 11px;
+      color: var(--text-secondary); padding: 2px 0 2px 14px;
+      position: relative; line-height: 1.5;
+    }
+    .symp-list li::before { content:'▸'; position:absolute; left:0; color:var(--accent-red); }
+
+    .protocol-box {
+      background: var(--bg-input);
+      border: 1px solid var(--border-active);
+      border-left: 3px solid var(--accent-red);
+      border-radius: var(--radius-sm); padding: 11px;
+      font-family: var(--font-body); font-size: 11px;
+      color: var(--text-primary); line-height: 1.7;
+    }
+    .protocol-title {
+      font-family: var(--font-display); font-weight: 700; font-size: 10px;
+      letter-spacing: 2px; color: var(--accent-red);
+      text-transform: uppercase; margin-bottom: 7px;
+    }
+
+    /* =====================================================
+       RIGHT PANEL — Hospital Routing
+       ===================================================== */
+    .hosp-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-active);
+      border-radius: var(--radius-md);
+      padding: 12px; margin-bottom: 8px;
+      position: relative; transition: all var(--t-med);
+    }
+    .hosp-card.primary {
+      border-color: var(--accent-green);
+      background: rgba(57,255,20,0.04);
+    }
+    .hosp-card.primary::after {
+      content: 'NEAREST CAPABLE';
+      position: absolute; top: -1px; right: 8px;
+      background: var(--accent-green); color: #000;
+      font-family: var(--font-display); font-size: 8px; font-weight: 800; letter-spacing: 2px;
+      padding: 2px 7px; border-radius: 0 0 3px 3px;
+    }
+    .hosp-name {
+      font-family: var(--font-display); font-weight: 700; font-size: 14px;
+      color: var(--text-primary); margin-bottom: 3px;
+    }
+    .hosp-type { font-family: var(--font-mono); font-size: 9px; color: var(--text-secondary); margin-bottom: 8px; }
+    .hosp-dist {
+      font-family: var(--font-display); font-weight: 800; font-size: 24px;
+      color: var(--accent-yellow); line-height: 1;
+    }
+    .hosp-dist span { font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); margin-left: 3px; }
+    .hosp-caps { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+    .cap-tag {
+      font-family: var(--font-mono); font-size: 9px;
+      padding: 2px 6px; border-radius: 2px;
+      background: rgba(0,212,255,0.07); color: var(--text-secondary);
+      border: 1px solid rgba(0,212,255,0.2);
+    }
+    .cap-tag.match {
+      background: rgba(57,255,20,0.12); color: var(--accent-green);
+      border-color: rgba(57,255,20,0.35);
+    }
+    .trauma-badge {
+      font-family: var(--font-display); font-size: 9px; font-weight: 700;
+      padding: 2px 6px; border-radius: 2px; margin-left: 5px;
+    }
+    .t1 { background: var(--accent-red); color: #fff; }
+    .t2 { background: var(--accent-orange); color: #fff; }
+    .t3 { background: #444; color: #ccc; }
+
+    /* =====================================================
+       RIGHT PANEL — Vulnerable Locations
+       ===================================================== */
+    .vuln-item {
+      display: flex; align-items: center; gap: 9px;
+      padding: 9px 10px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-active);
+      border-radius: var(--radius-sm);
+      margin-bottom: 5px;
+      transition: all var(--t-fast);
+    }
+    .vuln-item.danger {
+      border-color: rgba(255,49,49,0.45);
+      background: rgba(255,49,49,0.04);
+    }
+    .vuln-ico {
+      width: 30px; height: 30px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; flex-shrink: 0;
+    }
+    .vuln-ico.school    { background: rgba(245,197,24,0.18); }
+    .vuln-ico.nursing   { background: rgba(255,49,49,0.18); }
+    .vuln-ico.community { background: rgba(0,212,255,0.15); }
+    .vuln-ico.govt      { background: rgba(176,112,255,0.15); }
+    .vuln-info { flex: 1; overflow: hidden; }
+    .vuln-name { font-family: var(--font-body); font-size: 11px; font-weight: 500; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .vuln-type { font-family: var(--font-mono); font-size: 9px; color: var(--text-secondary); }
+    .vuln-pop  { font-family: var(--font-mono); font-size: 9px; color: var(--accent-red); }
+    .danger-tag {
+      font-family: var(--font-display); font-size: 8px; font-weight: 700; letter-spacing: 1px;
+      padding: 2px 5px; background: var(--accent-red); color: #fff; border-radius: 2px;
+      animation: blink-tag 1.8s infinite; flex-shrink: 0;
+    }
+    @keyframes blink-tag { 0%,100%{opacity:1;} 50%{opacity:0.45;} }
+
+    /* =====================================================
+       IDLE / FALLBACK STATES
+       ===================================================== */
+    .idle-state {
+      text-align: center;
+      padding: 30px 16px;
+      color: var(--text-dim);
+    }
+    .idle-state i { font-size: 36px; display: block; margin-bottom: 10px; opacity: 0.25; }
+    .idle-state p { font-family: var(--font-mono); font-size: 10px; line-height: 1.9; color: var(--text-dim); }
+
+    .fallback-box {
+      background: rgba(255,49,49,0.07);
+      border: 1px solid rgba(255,49,49,0.4);
+      border-radius: var(--radius-md); padding: 16px;
+      text-align: center;
+    }
+    .fallback-box i { font-size: 28px; color: var(--accent-red); display:block; margin-bottom:10px; }
+    .fallback-box strong { font-family:var(--font-display); font-size:13px; letter-spacing:1px; color:var(--accent-red); display:block; margin-bottom:8px; }
+    .fallback-box p { font-family:var(--font-mono); font-size:10px; color:var(--text-secondary); line-height:1.9; }
+
+    /* =====================================================
+       UTILITY
+       ===================================================== */
+    .count-badge {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-width: 18px; height: 18px;
+      font-family: var(--font-mono); font-size: 9px;
+      border-radius: 9px; padding: 0 5px;
+    }
+    .badge-red    { background: var(--accent-red);    color: #fff; }
+    .badge-cyan   { background: var(--accent-cyan);   color: #000; }
+    .badge-yellow { background: var(--accent-yellow); color: #000; }
+
+    .fade-in { animation: fadeIn var(--t-med) forwards; }
+    @keyframes fadeIn { from {opacity:0;transform:translateY(3px);} to {opacity:1;transform:translateY(0);} }
+
+    .scroll-inner {
+      overflow-y: auto; max-height: 215px; padding-right: 3px;
+    }
+    .scroll-inner::-webkit-scrollbar { width: 3px; }
+    .scroll-inner::-webkit-scrollbar-track { background: transparent; }
+    .scroll-inner::-webkit-scrollbar-thumb { background: var(--border-active); border-radius: 2px; }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ===================================================
+       HEADER
+       =================================================== -->
+  <header id="header">
+    <div class="hdr-logo-icon"><i class="fas fa-biohazard"></i></div>
+    <div>
+      <div class="hdr-title">HAZ-ROUTE</div>
+      <div class="hdr-subtitle">Chemical Triage Engine · Montgomery, Alabama</div>
+    </div>
+    <div class="hdr-div"></div>
+    <div class="hdr-status">
+      <div class="status-dot" id="sys-dot"></div>
+      <span id="sys-text">SYSTEM NOMINAL</span>
+    </div>
+    <div class="hdr-spacer"></div>
+    <div class="hdr-badge">EMT FIELD TOOL</div>
+    <div class="hdr-div"></div>
+    <div class="hdr-clock">
+      <div id="clk-time">--:--:--</div>
+      <span id="clk-date">--/--/----</span>
+    </div>
+  </header>
+
+  <!-- ===================================================
+       LEFT PANEL — Chemical Identification
+       =================================================== -->
+  <aside id="panel-left">
+
+    <!-- Step 1: Observe & Filter -->
+    <div class="panel-section">
+      <div class="section-header">
+        <div class="section-num" style="background:var(--accent-yellow);color:#000;">1</div>
+        <div class="section-title">Field Observations</div>
+      </div>
+
+      <fieldset>
+        <legend>Physical State</legend>
+        <select class="filter-select" id="f-state">
+          <option value="">— Observed State —</option>
+          <option value="Gas">Gas / Vapor</option>
+          <option value="Liquid">Liquid / Spill</option>
+          <option value="Solid">Solid / Powder</option>
+        </select>
+      </fieldset>
+
+      <fieldset>
+        <legend>Visible Color / Appearance</legend>
+        <select class="filter-select" id="f-color">
+          <option value="">— Visible Color —</option>
+          <option value="Colorless">Colorless / Clear</option>
+          <option value="Yellow/Green">Yellow / Green Cloud</option>
+          <option value="White">White / Smoke</option>
+          <option value="Brown/Orange">Brown / Orange</option>
+          <option value="Blue">Blue</option>
+        </select>
+      </fieldset>
+
+      <fieldset>
+        <legend>Detected Odor</legend>
+        <select class="filter-select" id="f-odor">
+          <option value="">— Odor Profile —</option>
+          <option value="Pungent/Bleach">Pungent / Bleach-like</option>
+          <option value="Sharp/Ammonia">Sharp / Ammonia</option>
+          <option value="Sweet/Aromatic">Sweet / Aromatic</option>
+          <option value="Odorless">Odorless / None</option>
+          <option value="Acrid/Vinegar">Acrid / Vinegar</option>
+          <option value="Hay-like">Freshly Cut Hay</option>
+        </select>
+      </fieldset>
+    </div>
+
+    <!-- Step 2: Compound Match -->
+    <div class="panel-section" style="flex:1;">
+      <div class="section-header">
+        <div class="section-num" style="background:var(--accent-red);color:#fff;">2</div>
+        <div class="section-title">
+          Identified Compound
+          <span class="count-badge badge-yellow" id="match-badge" style="display:none;"></span>
+        </div>
+      </div>
+      <div id="chem-results">
+        <div class="waiting-msg">
+          <i class="fas fa-flask" style="font-size:22px;display:block;margin-bottom:8px;opacity:0.3;"></i>
+          Awaiting field observations…<br/>
+          Select indicators above to<br/>identify the compound.
+        </div>
+      </div>
+    </div>
+
+    <!-- Step 3: Incident Location -->
+    <div class="panel-section">
+      <div class="section-header">
+        <div class="section-num" style="background:var(--accent-cyan);color:#000;">3</div>
+        <div class="section-title">Incident Location</div>
+      </div>
+      <div class="instr-box">
+        <i class="fas fa-map-pin"></i>Click the map to drop the incident pin.<br/>
+        <i class="fas fa-circle-radiation"></i>Danger plume renders automatically.
+      </div>
+      <div id="incident-coords">Awaiting map click…</div>
+      <button class="btn-reset" onclick="resetAll()">
+        <i class="fas fa-rotate-left"></i>&nbsp; RESET INCIDENT
+      </button>
+    </div>
+
+  </aside>
+
+  <!-- ===================================================
+       MAP CENTER
+       =================================================== -->
+  <main id="map-container">
+    <div id="map"></div>
+    <div id="map-statusbar">
+      <div class="msb"><span class="msb-lbl">CHEMICAL:</span><span class="msb-val" id="sb-chem">—</span></div>
+      <div class="msb"><span class="msb-lbl">RADIUS:</span><span class="msb-val red" id="sb-rad">—</span></div>
+      <div class="msb"><span class="msb-lbl">INCIDENT:</span><span class="msb-val" id="sb-inc">NOT SET</span></div>
+      <div class="msb"><span class="msb-lbl">AT-RISK SITES:</span><span class="msb-val red" id="sb-risk">0</span></div>
+      <div class="msb" style="margin-left:auto;"><span class="msb-lbl">ROUTE TO:</span><span class="msb-val green" id="sb-hosp">—</span></div>
+    </div>
+  </main>
+
+  <!-- ===================================================
+       RIGHT PANEL — Response Intelligence
+       =================================================== -->
+  <aside id="panel-right">
+
+    <!-- Chemical Profile -->
+    <div class="panel-section">
+      <div class="section-header">
+        <div class="section-num" style="background:var(--accent-cyan);color:#000;">4</div>
+        <div class="section-title">Chemical Profile</div>
+      </div>
+      <div id="chem-detail">
+        <div class="idle-state">
+          <i class="fas fa-atom"></i>
+          <p>No compound selected.<br/>Use the control panel to<br/>filter by observable indicators.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hospital Routing -->
+    <div class="panel-section">
+      <div class="section-header">
+        <div class="section-num" style="background:var(--accent-green);color:#000;">5</div>
+        <div class="section-title">
+          Hospital Routing
+          <span class="count-badge badge-cyan" id="hosp-badge" style="display:none;"></span>
+        </div>
+      </div>
+      <div id="hosp-content">
+        <div class="idle-state">
+          <i class="fas fa-hospital"></i>
+          <p>Set incident location &amp;<br/>identify chemical to activate<br/>antidote-aware routing.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Vulnerable Sites -->
+    <div class="panel-section">
+      <div class="section-header">
+        <div class="section-num" style="background:var(--accent-orange);color:#fff;">6</div>
+        <div class="section-title">
+          At-Risk Locations
+          <span class="count-badge badge-red" id="vuln-badge" style="display:none;"></span>
+        </div>
+      </div>
+      <div id="vuln-content">
+        <div class="idle-state" style="padding:18px 0;">
+          <i class="fas fa-people-group"></i>
+          <p>Vulnerable sites within the<br/>danger plume radius<br/>will appear here.</p>
+        </div>
+      </div>
+    </div>
+
+  </aside>
+</div><!-- /#app -->
+
+<script>
+/* ============================================================
+   HAZ-ROUTE: Chemical Triage Engine
+   City of Montgomery, Alabama
+   Hackathon Demo Build — Offline-capable SPA
+   ============================================================ */
+console.log('%c[HAZ-ROUTE] Initializing Chemical Triage Engine v1.0', 'color:#F5C518;font-weight:bold;font-size:14px;');
+
+/* ============================================================
+   DATA LAYER — Chemical Database (10 industrial compounds)
+   Sourced from: NIOSH Pocket Guide, EPA ERG 2024, ALOHA
+   Each chemical has observable triage indicators for field ID.
+   ============================================================ */
+const CHEMICALS = [
+  {
+    id: 'cl2',
+    chemical: 'Chlorine Gas',
+    formula: 'Cl₂',
+    state: 'Gas',
+    color: 'Yellow/Green',
+    odor: 'Pungent/Bleach',
+    danger_radius_m: 1200,
+    antidote_req: 'Oxygen/Albuterol',
+    hazard_class: 'DOT 2.3 / IDLH: 10ppm',
+    ppe_level: 'Level A',
+    card_accent: '#B5E853',
+    symptoms: [
+      'Choking & respiratory distress',
+      'Severe eye & throat irritation',
+      'Delayed pulmonary edema (2–24 hrs)',
+      'Cyanosis in severe exposure'
+    ],
+    medical_protocol: 'IMMEDIATE: Remove to fresh air. Strip contaminated clothing. Administer 100% humidified O₂ via non-rebreather mask. TREATMENT: Nebulized Albuterol 2.5mg for bronchospasm. IV methylprednisolone 1–2mg/kg for severe respiratory compromise. Monitor for delayed pulmonary edema 24–48 hrs. Irrigate eyes with copious normal saline. DO NOT induce vomiting.'
+  },
+  {
+    id: 'nh3',
+    chemical: 'Anhydrous Ammonia',
+    formula: 'NH₃',
+    state: 'Gas',
+    color: 'Colorless',
+    odor: 'Sharp/Ammonia',
+    danger_radius_m: 1500,
+    antidote_req: 'Oxygen/Bronchodilators',
+    hazard_class: 'DOT 2.3 / IDLH: 300ppm',
+    ppe_level: 'Level A',
+    card_accent: '#00D4FF',
+    symptoms: [
+      'Severe upper airway burns',
+      'Lacrimation & corneal damage',
+      'Dermal chemical burns on contact',
+      'Bronchospasm & laryngeal edema'
+    ],
+    medical_protocol: 'IMMEDIATE: Evacuate, isolate min. 300m upwind. Remove all clothing. Flush skin & eyes 15–20 min with water. TREATMENT: 100% Oxygen. Nebulized bronchodilators (Albuterol). IV corticosteroids for airway edema. Intubate if upper airway is compromised. IV fluids for hypotension. Refer burns to specialized burn unit.'
+  },
+  {
+    id: 'cocl2',
+    chemical: 'Phosgene Gas',
+    formula: 'COCl₂',
+    state: 'Gas',
+    color: 'Colorless',
+    odor: 'Hay-like',
+    danger_radius_m: 1800,
+    antidote_req: 'Supportive Care/Oxygen',
+    hazard_class: 'DOT 2.3 / CWA Schedule 3',
+    ppe_level: 'Level A',
+    card_accent: '#FF7B00',
+    symptoms: [
+      '⚠ LATENT PERIOD: victim feels fine 1–24 hrs',
+      'Severe non-cardiogenic pulmonary edema',
+      'Progressive hypoxia & cyanosis',
+      'Cardiovascular collapse (late stage)'
+    ],
+    medical_protocol: 'CRITICAL — NO SPECIFIC ANTIDOTE. ⚠ DECEPTION ALERT: Victim may appear asymptomatic for hours then collapse. MANDATORY REST — no physical exertion. TREATMENT: 100% O₂ via NRB mask. Early corticosteroids: dexamethasone 8mg IV. Prophylactic nebulized terbutaline. Restrict fluids — avoid overhydration. ICU admission mandatory for all exposures.'
+  },
+  {
+    id: 'tdi',
+    chemical: 'Toluene Diisocyanate',
+    formula: 'TDI (C₉H₆N₂O₂)',
+    state: 'Liquid',
+    color: 'Colorless',
+    odor: 'Sharp/Ammonia',
+    danger_radius_m: 800,
+    antidote_req: 'Bronchodilators/Steroids',
+    hazard_class: 'DOT 6.1 / Sensitizer',
+    ppe_level: 'Level B',
+    card_accent: '#F5C518',
+    symptoms: [
+      'Asthma-like bronchospasm',
+      'Sensitization — permanent respiratory risk',
+      'Skin & eye chemical burns',
+      'Nausea, headache & CNS effects'
+    ],
+    medical_protocol: 'DECONTAMINATION: Remove clothing, flush skin/eyes 15 min. TREATMENT: Albuterol MDI or nebulized for bronchospasm. Systemic corticosteroids for severe cases. SENSITIZATION WARNING: prior exposure causes life-threatening anaphylactic-like reactions on re-exposure. Mandatory pulmonary function testing follow-up. Hospitalize for any significant inhalation exposure.'
+  },
+  {
+    id: 'h2so4',
+    chemical: 'Sulfuric Acid',
+    formula: 'H₂SO₄',
+    state: 'Liquid',
+    color: 'Colorless',
+    odor: 'Acrid/Vinegar',
+    danger_radius_m: 600,
+    antidote_req: 'Sodium Bicarbonate/Irrigation',
+    hazard_class: 'DOT 8 (Corrosive)',
+    ppe_level: 'Level B',
+    card_accent: '#FF8C69',
+    symptoms: [
+      'Severe chemical burns — skin, eyes, GI',
+      'Respiratory tract burns if misted/aerosolized',
+      'Hematemesis if ingested',
+      'Systemic acidosis in large exposures'
+    ],
+    medical_protocol: '⚠ DO NOT apply alkalis directly to burns (exothermic reaction). Flush with LARGE volumes of water 20+ min first. TREATMENT: After thorough water flush, sodium bicarbonate 1.4% solution for skin neutralization. Ophtho consult for all ocular exposures. IV fluid resuscitation. Monitor ABGs for systemic acidosis. Surgical debridement may be required for deep burns.'
+  },
+  {
+    id: 'paa',
+    chemical: 'Peracetic Acid',
+    formula: 'CH₃CO₃H',
+    state: 'Liquid',
+    color: 'Colorless',
+    odor: 'Acrid/Vinegar',
+    danger_radius_m: 500,
+    antidote_req: 'Oxygen/Water Irrigation',
+    hazard_class: 'DOT 5.1 / 8 (Oxidizer)',
+    ppe_level: 'Level B',
+    card_accent: '#80FF80',
+    symptoms: [
+      'Corrosive burns to mucous membranes',
+      'Strong oxidizer — spontaneous combustion risk',
+      'Corneal damage on eye contact',
+      'Pulmonary irritation on inhalation'
+    ],
+    medical_protocol: '⚠ OXIDIZER FIRE HAZARD — eliminate all ignition sources. DECONTAMINATION: Flood skin & eyes with large amounts of water immediately. TREATMENT: Supportive care. O₂ for respiratory symptoms. No specific antidote. Full ophthalmology evaluation for any ocular exposure. Chest X-ray if inhalation suspected. Continuous respiratory monitoring.'
+  },
+  {
+    id: 'eto',
+    chemical: 'Ethylene Oxide',
+    formula: 'EtO (C₂H₄O)',
+    state: 'Gas',
+    color: 'Colorless',
+    odor: 'Sweet/Aromatic',
+    danger_radius_m: 1000,
+    antidote_req: 'Supportive Care/Oxygen',
+    hazard_class: 'DOT 2.3 / Known Carcinogen',
+    ppe_level: 'Level B',
+    card_accent: '#DDA0DD',
+    symptoms: [
+      'CNS depression, headache & dizziness',
+      'Nausea & vomiting',
+      'Pulmonary & mucosal irritation',
+      'CARCINOGEN — leukemia risk on chronic exposure'
+    ],
+    medical_protocol: '⚠ KNOWN CARCINOGEN — report all significant exposures to occupational health immediately. TREATMENT: Fresh air. Remove contaminated clothing. 100% O₂. Monitor neurological status. IV antiemetics for nausea. Dermal: flush 15 min with water. No specific antidote. Arrange cancer screening protocol follow-up for all significant inhalation exposures.'
+  },
+  {
+    id: 'btx',
+    chemical: 'Xylene / Toluene (BTX)',
+    formula: 'C₈H₁₀ / C₇H₈',
+    state: 'Liquid',
+    color: 'Colorless',
+    odor: 'Sweet/Aromatic',
+    danger_radius_m: 700,
+    antidote_req: 'Activated Charcoal/Supportive',
+    hazard_class: 'DOT 3 (Flammable)',
+    ppe_level: 'Level B',
+    card_accent: '#98FB98',
+    symptoms: [
+      'CNS depression — narcosis & incoordination',
+      'Dizziness, fatigue & visual disturbance',
+      'Hepatic & renal toxicity (chronic)',
+      'Cardiac arrhythmias at high concentrations'
+    ],
+    medical_protocol: '⚠ FLAMMABLE LIQUID — eliminate ignition sources immediately. TREATMENT: Fresh air. Remove contaminated clothes. If ingested: Activated Charcoal 1g/kg PO (do NOT induce vomiting — severe aspiration risk). 12-lead ECG; monitor for arrhythmias. Liver & renal panel. Oxygen supplementation as needed. Hemodialysis in rare severe cases.'
+  },
+  {
+    id: 'naoh',
+    chemical: 'Sodium Hydroxide (Caustic)',
+    formula: 'NaOH',
+    state: 'Liquid',
+    color: 'Colorless',
+    odor: 'Odorless',
+    danger_radius_m: 400,
+    antidote_req: 'Water Irrigation/Neutralization',
+    hazard_class: 'DOT 8 (Strong Alkali)',
+    ppe_level: 'Level B',
+    card_accent: '#87CEEB',
+    symptoms: [
+      'Liquefactive necrosis — deep tissue penetration',
+      'Progressive alkaline burns worsen over time',
+      'Corneal & lens destruction if ocular',
+      'Perforation risk if GI ingestion'
+    ],
+    medical_protocol: '⚠ DO NOT use acid neutralizers on skin (exothermic). DECONTAMINATION: Copious water flush minimum 20 min. Eye injuries: continuous irrigation until pH 7.0 confirmed. TREATMENT: Do NOT induce vomiting if ingested. Endoscopy for GI involvement. Ophtho consult mandatory. No specific antidote — aggressive supportive care. Serial pH monitoring.'
+  },
+  {
+    id: 'sf6',
+    chemical: 'Sulfur Hexafluoride',
+    formula: 'SF₆',
+    state: 'Gas',
+    color: 'Colorless',
+    odor: 'Odorless',
+    danger_radius_m: 900,
+    antidote_req: 'Oxygen/Supportive Care',
+    hazard_class: 'DOT 2.2 / GHG',
+    ppe_level: 'Level C',
+    card_accent: '#B0C4DE',
+    symptoms: [
+      'Simple asphyxiant — displaces O₂ in space',
+      'Rapid loss of consciousness if concentrated',
+      'Cryogenic burns from liquid release phase',
+      'No specific toxicity — hypoxia is primary risk'
+    ],
+    medical_protocol: '⚠ CONFINED SPACE ASPHYXIATION RISK. IMMEDIATE: Evacuate all personnel to fresh air. TREATMENT: 100% O₂ for hypoxia — monitor SpO₂ and ABGs continuously. Cryogenic burns: treat as frostbite — warm gradually with tepid water 37–40°C, do NOT rub affected areas. Cardiac monitoring. Supportive care only — no specific antidote. Environmental sampling required.'
+  }
+];
+
+/* ============================================================
+   DATA LAYER — Hospital Database (Montgomery, AL)
+   Source: OpenData Montgomery Emergency Services +
+   ADPH Hospital Directory, enriched with HazMat capabilities
+   ============================================================ */
+const HOSPITALS = [
+  {
+    id: 'jackson',
+    name: 'Jackson Hospital & Clinic',
+    lat: 32.3667, lng: -86.2875,
+    type: 'Full-Service Hospital', trauma_level: 1,
+    address: '1725 Pine St, Montgomery, AL 36106',
+    hazmat_capabilities: [
+      'Oxygen/Albuterol','Oxygen/Bronchodilators','Supportive Care/Oxygen',
+      'Sodium Bicarbonate/Irrigation','Water Irrigation/Neutralization',
+      'Oxygen/Water Irrigation','Bronchodilators/Steroids','Activated Charcoal/Supportive'
+    ]
+  },
+  {
+    id: 'bmc-south',
+    name: 'Baptist Medical Center South',
+    lat: 32.3255, lng: -86.2750,
+    type: 'Full-Service Hospital', trauma_level: 2,
+    address: '2105 E South Blvd, Montgomery, AL 36116',
+    hazmat_capabilities: [
+      'Oxygen/Albuterol','Oxygen/Bronchodilators','Bronchodilators/Steroids',
+      'Supportive Care/Oxygen','Sodium Bicarbonate/Irrigation',
+      'Activated Charcoal/Supportive','Water Irrigation/Neutralization','Oxygen/Water Irrigation'
+    ]
+  },
+  {
+    id: 'bmc-east',
+    name: 'Baptist Medical Center East',
+    lat: 32.3580, lng: -86.1750,
+    type: 'Full-Service Hospital', trauma_level: 2,
+    address: '400 Taylor Rd, Montgomery, AL 36117',
+    hazmat_capabilities: [
+      'Oxygen/Albuterol','Bronchodilators/Steroids',
+      'Sodium Bicarbonate/Irrigation','Activated Charcoal/Supportive',
+      'Water Irrigation/Neutralization','Oxygen/Water Irrigation'
+    ]
+  },
+  {
+    id: 'va',
+    name: 'Central AL Veterans Medical Ctr.',
+    lat: 32.3900, lng: -86.2700,
+    type: 'VA Hospital', trauma_level: 2,
+    address: '215 Perry Hill Rd, Montgomery, AL 36109',
+    hazmat_capabilities: [
+      'Supportive Care/Oxygen','Oxygen/Bronchodilators',
+      'Activated Charcoal/Supportive','Oxygen/Albuterol','Water Irrigation/Neutralization'
+    ]
+  },
+  {
+    id: 'prattville',
+    name: 'Prattville Baptist Hospital',
+    lat: 32.4630, lng: -86.4610,
+    type: 'Community Hospital', trauma_level: 3,
+    address: '124 S Memorial Dr, Prattville, AL 36067',
+    hazmat_capabilities: [
+      'Oxygen/Albuterol','Oxygen/Bronchodilators',
+      'Supportive Care/Oxygen','Water Irrigation/Neutralization','Activated Charcoal/Supportive'
+    ]
+  },
+  {
+    id: 'encompass',
+    name: 'Encompass Health Rehab',
+    lat: 32.3100, lng: -86.2900,
+    type: 'Rehabilitation', trauma_level: 3,
+    address: '4465 Narrow Lane Rd, Montgomery, AL 36116',
+    hazmat_capabilities: ['Supportive Care/Oxygen','Oxygen/Albuterol']
+  }
+];
+
+/* ============================================================
+   DATA LAYER — Vulnerable Locations (Montgomery, AL)
+   Source: OpenData Montgomery Point of Interest +
+   Zoning / Population datasets
+   ============================================================ */
+const VULNERABLE = [
+  { name:'Carver High School',                type:'School',      pop:1200, lat:32.3765, lng:-86.3185, ico:'school'    },
+  { name:'Jefferson Davis High School',       type:'School',      pop:950,  lat:32.3507, lng:-86.2841, ico:'school'    },
+  { name:'Montgomery Public Schools HQ',      type:'School',      pop:300,  lat:32.3792, lng:-86.3077, ico:'school'    },
+  { name:'Capitol Heights Middle School',     type:'School',      pop:620,  lat:32.3550, lng:-86.2690, ico:'school'    },
+  { name:'Park Crossing High School',         type:'School',      pop:1100, lat:32.3440, lng:-86.2150, ico:'school'    },
+  { name:'Alabama State University',          type:'University',  pop:5500, lat:32.3635, lng:-86.3010, ico:'school'    },
+  { name:'Auburn University at Montgomery',   type:'University',  pop:5200, lat:32.3678, lng:-86.1680, ico:'school'    },
+  { name:'Huntingdon College',                type:'University',  pop:1050, lat:32.3840, lng:-86.2650, ico:'school'    },
+  { name:'Landmarks of Grace Nursing Home',   type:'Nursing Home',pop:180,  lat:32.3821, lng:-86.3050, ico:'nursing'   },
+  { name:'Summerford Nursing Home',           type:'Nursing Home',pop:120,  lat:32.3130, lng:-86.3010, ico:'nursing'   },
+  { name:'Montgomery Healthcare Facility',    type:'Nursing Home',pop:210,  lat:32.3695, lng:-86.2520, ico:'nursing'   },
+  { name:'Grandview Medical Care',            type:'Nursing Home',pop:95,   lat:32.3580, lng:-86.3200, ico:'nursing'   },
+  { name:'Rosa Parks Museum',                 type:'Community',   pop:400,  lat:32.3762, lng:-86.3109, ico:'community' },
+  { name:'Montgomery City Hall',              type:'Government',  pop:800,  lat:32.3794, lng:-86.3120, ico:'govt'      },
+  { name:'Riverwalk Stadium',                 type:'Community',   pop:5000, lat:32.3782, lng:-86.3060, ico:'community' },
+  { name:'Garrett Coliseum',                  type:'Community',   pop:8000, lat:32.3545, lng:-86.3021, ico:'community' },
+  { name:'Montgomery Mall Area',              type:'Community',   pop:3500, lat:32.3650, lng:-86.2200, ico:'community' },
+  { name:'Eastdale Mall',                     type:'Community',   pop:2800, lat:32.3568, lng:-86.2071, ico:'community' },
+  { name:'Montgomery Zoo',                    type:'Community',   pop:1500, lat:32.4196, lng:-86.3085, ico:'community' },
+  { name:'Trinity Presbyterian Complex',      type:'Community',   pop:600,  lat:32.3712, lng:-86.2468, ico:'community' }
+];
+
+/* ============================================================
+   APPLICATION STATE
+   ============================================================ */
+const STATE = {
+  selectedChem:     null,   // currently selected chemical object
+  incidentLocation: null,   // { lat, lng }
+  layers: {
+    incidentMarker:   null,
+    dangerCircle:     null,
+    routePolyline:    null,
+    hospitalMarkers:  [],
+    vulnMarkers:      [],
+    hospitalTarget:   null
+  }
+};
+
+/* ============================================================
+   MAP INITIALIZATION
+   ============================================================ */
+let map;
+
+function initMap() {
+  try {
+    console.log('[HAZ-ROUTE][Map] Initializing Leaflet — center: Montgomery, AL (32.3668, -86.3000)');
+
+    map = L.map('map', {
+      center: [32.3668, -86.3000],
+      zoom: 12,
+      zoomControl: true
+    });
+
+    // Dark tile layer from CartoDB
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; <a href="https://carto.com/">CARTO</a> | &copy; OpenStreetMap',
+      subdomains: 'abcd',
+      maxZoom: 19
+    }).addTo(map);
+
+    // Render hospital base markers
+    renderHospitalBaseMarkers();
+
+    // Map click → set incident location
+    map.on('click', (e) => {
+      console.log(`[HAZ-ROUTE][Map] Click event at lat:${e.latlng.lat.toFixed(5)} lng:${e.latlng.lng.toFixed(5)}`);
+      setIncidentLocation(e.latlng.lat, e.latlng.lng);
+    });
+
+    console.log('[HAZ-ROUTE][Map] ✅ Map initialized successfully');
+  } catch (err) {
+    console.error('[HAZ-ROUTE][Map] ❌ CRITICAL: Leaflet failed to initialize:', err);
+    document.getElementById('map-container').innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:center;height:100%;
+                  color:#F5C518;font-family:monospace;text-align:center;padding:40px;">
+        <div>
+          <i class="fas fa-triangle-exclamation" style="font-size:48px;display:block;margin-bottom:16px;"></i>
+          <strong>MAP UNAVAILABLE</strong><br/>
+          <small style="color:#7A8FA8;">Check network connection. Leaflet CDN may be unreachable.<br/>
+          App data layer remains functional.</small>
+        </div>
+      </div>`;
+  }
+}
+
+/* ============================================================
+   MATH ALGORITHMS — Haversine Formula
+   ─────────────────────────────────────────────────────────
+   Calculates the great-circle distance between two points
+   on a sphere (Earth radius = 6371 km).
+
+   Formula derivation:
+     a = sin²(Δlat/2) + cos(lat1)·cos(lat2)·sin²(Δlng/2)
+     c = 2·atan2(√a, √(1−a))
+     d = R·c   [km]
+
+   This is the gold-standard for short-range GPS distance
+   calculations. Returns kilometers (float).
+   ============================================================ */
+function haversine(lat1, lng1, lat2, lng2) {
+  try {
+    const R    = 6371;                          // Earth radius (km)
+    const rad  = (d) => d * (Math.PI / 180);   // Degrees → radians
+
+    const dLat = rad(lat2 - lat1);
+    const dLng = rad(lng2 - lng1);
+
+    // Core haversine calculation
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(rad(lat1)) * Math.cos(rad(lat2)) *
+      Math.sin(dLng / 2) * Math.sin(dLng / 2);
+
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const km = R * c;
+
+    return km;
+  } catch (err) {
+    console.error('[HAZ-ROUTE][Haversine] Calculation error:', err);
+    return Infinity; // Safe fallback — exclude from routing comparisons
+  }
+}
+
+/* ============================================================
+   SPATIAL LOGIC — Point-in-Circle test
+   Returns true if (pLat,pLng) is within radius_m meters
+   of the center point (cLat,cLng).
+   ============================================================ */
+function pointInRadius(cLat, cLng, pLat, pLng, radius_m) {
+  try {
+    const distM = haversine(cLat, cLng, pLat, pLng) * 1000;
+    return distM <= radius_m;
+  } catch (err) {
+    console.error('[HAZ-ROUTE][Spatial] Point-in-radius test failed:', err);
+    return false;
+  }
+}
+
+/* ============================================================
+   FILTER LOGIC — Observable indicators → chemical candidates
+   All non-empty filters must match (AND logic).
+   ============================================================ */
+function filterChemicals(state, color, odor) {
+  try {
+    console.log(`[HAZ-ROUTE][Filter] State="${state}" Color="${color}" Odor="${odor}"`);
+    return CHEMICALS.filter(c => {
+      const okState = !state || c.state === state;
+      const okColor = !color || c.color === color;
+      const okOdor  = !odor  || c.odor  === odor;
+      return okState && okColor && okOdor;
+    });
+  } catch (err) {
+    console.error('[HAZ-ROUTE][Filter] Filtering error:', err);
+    return [];
+  }
+}
+
+/* ============================================================
+   UI — Render chemical result cards (left panel)
+   ============================================================ */
+function renderChemCards(matches) {
+  const el    = document.getElementById('chem-results');
+  const badge = document.getElementById('match-badge');
+
+  if (!matches || matches.length === 0) {
+    badge.style.display = 'none';
+    el.innerHTML = `
+      <div class="no-match fade-in">
+        <i class="fas fa-circle-exclamation" style="color:var(--accent-red);opacity:0.5;font-size:22px;display:block;margin-bottom:8px;"></i>
+        No compounds match these indicators.<br/>Adjust filters or verify observations.
+      </div>`;
+    return;
+  }
+
+  badge.textContent = matches.length;
+  badge.style.display = 'inline-flex';
+
+  el.innerHTML = matches.map(c => `
+    <div class="chem-card fade-in ${STATE.selectedChem?.id === c.id ? 'selected' : ''}"
+         style="--card-accent:${c.card_accent}"
+         onclick="selectChem('${c.id}')">
+      <div class="chem-name">${c.chemical}</div>
+      <div class="chem-formula">${c.formula}</div>
+      <div class="chem-tags">
+        <span class="ctag">${c.state}</span>
+        <span class="ctag">${c.color}</span>
+        <span class="ctag">${c.odor}</span>
+      </div>
+      <div class="chem-meta">
+        <span class="chem-hazclass">${c.hazard_class}</span>
+        <span class="ppe-badge ppe-${c.ppe_level.split(' ')[1]?.toLowerCase() || 'b'}">${c.ppe_level}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+/* ============================================================
+   UI — Render chemical detail (right panel)
+   ============================================================ */
+function renderChemDetail(chem) {
+  const el = document.getElementById('chem-detail');
+  if (!chem) {
+    el.innerHTML = `<div class="idle-state"><i class="fas fa-atom"></i><p>Select a compound to view<br/>its full hazard profile &amp;<br/>medical protocol.</p></div>`;
+    return;
+  }
+
+  el.innerHTML = `
+    <div class="fade-in">
+      <div class="sum-row"><span class="sum-lbl">Compound</span><span class="sum-val yellow">${chem.chemical}</span></div>
+      <div class="sum-row"><span class="sum-lbl">Formula</span><span class="sum-val cyan">${chem.formula}</span></div>
+      <div class="sum-row"><span class="sum-lbl">DOT Class</span><span class="sum-val">${chem.hazard_class}</span></div>
+      <div class="sum-row"><span class="sum-lbl">PPE Required</span><span class="sum-val red">${chem.ppe_level}</span></div>
+      <div class="data-div"></div>
+      <div class="sum-row">
+        <span class="sum-lbl">Danger Radius</span>
+        <span style="display:flex;align-items:baseline;gap:4px;">
+          <span class="radius-num">${chem.danger_radius_m.toLocaleString()}</span>
+          <span class="radius-unit">meters</span>
+        </span>
+      </div>
+      <div class="sum-row">
+        <span class="sum-lbl">Required Antidote</span>
+        <span class="sum-val green" style="font-size:10px;">${chem.antidote_req}</span>
+      </div>
+      <div class="data-div"></div>
+      <div class="symptom-box">
+        <div class="symptom-box-title"><i class="fas fa-triangle-exclamation"></i> &nbsp;Clinical Presentation</div>
+        <ul class="symp-list">${chem.symptoms.map(s => `<li>${s}</li>`).join('')}</ul>
+      </div>
+      <div class="protocol-box">
+        <div class="protocol-title"><i class="fas fa-kit-medical"></i> &nbsp;Medical Protocol</div>
+        ${chem.medical_protocol}
+      </div>
+    </div>`;
+
+  // Update status bar
+  document.getElementById('sb-chem').textContent = chem.chemical;
+  document.getElementById('sb-rad').textContent  = `${chem.danger_radius_m.toLocaleString()}m`;
+}
+
+/* ============================================================
+   MAP — Set incident location
+   ============================================================ */
+function setIncidentLocation(lat, lng) {
+  try {
+    STATE.incidentLocation = { lat, lng };
+    console.log(`[HAZ-ROUTE][Incident] Location set → lat:${lat.toFixed(5)} lng:${lng.toFixed(5)}`);
+
+    // Update UI
+    document.getElementById('incident-coords').textContent =
+      `📍 ${lat.toFixed(5)}°N,  ${Math.abs(lng).toFixed(5)}°W`;
+    document.getElementById('sb-inc').textContent = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+
+    // System alert status
+    document.getElementById('sys-dot').classList.add('alert');
+    document.getElementById('sys-text').textContent = 'ACTIVE INCIDENT';
+
+    // Remove old marker
+    if (STATE.layers.incidentMarker) map.removeLayer(STATE.layers.incidentMarker);
+
+    // Custom incident marker
+    const icoHtml = `
+      <div style="width:22px;height:22px;
+        background:var(--accent-red);border:3px solid #fff;border-radius:50%;
+        box-shadow:0 0 0 3px var(--accent-red),0 0 18px var(--accent-red);"></div>`;
+
+    STATE.layers.incidentMarker = L.marker([lat, lng], {
+      icon: L.divIcon({ className:'', html:icoHtml, iconSize:[22,22], iconAnchor:[11,11] })
+    }).addTo(map).bindTooltip('⚠ INCIDENT', {
+      permanent: true, direction: 'top',
+      className: 'lbl-incident', offset: [0,-14]
+    });
+
+    // Trigger full analysis if chemical already selected
+    if (STATE.selectedChem) runFullAnalysis();
+
+  } catch (err) {
+    console.error('[HAZ-ROUTE][Incident] Failed to set incident location:', err);
+    document.getElementById('incident-coords').textContent = '⚠ Location error — retry map click';
+  }
+}
+
+/* ============================================================
+   MAP — Draw danger plume circle
+   ============================================================ */
+function drawPlume(lat, lng, radius_m) {
+  try {
+    if (STATE.layers.dangerCircle) map.removeLayer(STATE.layers.dangerCircle);
+
+    console.log(`[HAZ-ROUTE][Plume] Drawing circle — center:(${lat.toFixed(4)},${lng.toFixed(4)}) r=${radius_m}m`);
+
+    STATE.layers.dangerCircle = L.circle([lat, lng], {
+      radius:      radius_m,
+      color:       '#FF3131',
+      weight:      2,
+      opacity:     0.85,
+      fillColor:   '#FF3131',
+      fillOpacity: 0.1,
+      dashArray:   '7 5'
+    }).addTo(map).bindPopup(
+      `<strong style="color:#FF3131;">⚠ DANGER ZONE</strong><br/>
+       Radius: ${radius_m.toLocaleString()}m<br/>
+       Compound: ${STATE.selectedChem?.chemical || 'Unknown'}`
+    );
+  } catch (err) {
+    console.error('[HAZ-ROUTE][Plume] Failed to draw danger circle:', err);
+  }
+}
+
+/* ============================================================
+   MAP — Render base hospital markers
+   ============================================================ */
+function renderHospitalBaseMarkers() {
+  try {
+    STATE.layers.hospitalMarkers.forEach(m => map.removeLayer(m));
+    STATE.layers.hospitalMarkers = [];
+
+    HOSPITALS.forEach(h => {
+      const ico = L.divIcon({
+        className: '',
+        html: `<div style="width:26px;height:26px;
+          background:#0E1318;border:2px solid #00D4FF;border-radius:4px;
+          display:flex;align-items:center;justify-content:center;
+          color:#00D4FF;font-size:12px;font-weight:bold;
+          box-shadow:0 2px 8px rgba(0,212,255,0.25);">✚</div>`,
+        iconSize: [26,26], iconAnchor: [13,13]
+      });
+
+      const m = L.marker([h.lat, h.lng], { icon: ico }).addTo(map)
+        .bindPopup(`
+          <div style="font-family:monospace;font-size:11px;min-width:190px;">
+            <strong style="color:#00D4FF;">${h.name}</strong><br/>
+            <span style="color:#7A8FA8;">${h.type} · Trauma L${h.trauma_level}</span><br/>
+            <span style="color:#555;font-size:10px;">${h.address}</span>
+          </div>`);
+
+      STATE.layers.hospitalMarkers.push(m);
+    });
+
+    console.log(`[HAZ-ROUTE][Hospitals] Placed ${HOSPITALS.length} hospital markers`);
+  } catch (err) {
+    console.error('[HAZ-ROUTE][Hospitals] Failed to render base markers:', err);
+  }
+}
+
+/* ============================================================
+   MAP — Render at-risk vulnerable site markers
+   ============================================================ */
+function renderVulnMarkers(sites) {
+  try {
+    STATE.layers.vulnMarkers.forEach(m => map.removeLayer(m));
+    STATE.layers.vulnMarkers = [];
+
+    const colorByIco = { school:'#F5C518', nursing:'#FF3131', community:'#00D4FF', govt:'#B070FF' };
+
+    sites.forEach(s => {
+      const c = colorByIco[s.ico] || '#aaa';
+      const ico = L.divIcon({
+        className: '',
+        html: `<div style="width:18px;height:18px;background:${c};border:2px solid #fff;
+               border-radius:50%;box-shadow:0 0 7px ${c};"></div>`,
+        iconSize:[18,18], iconAnchor:[9,9]
+      });
+
+      const m = L.marker([s.lat, s.lng], { icon: ico }).addTo(map)
+        .bindPopup(`
+          <div style="font-family:monospace;font-size:11px;">
+            <strong style="color:${c};">⚠ AT-RISK: ${s.name}</strong><br/>
+            Type: ${s.type}<br/>
+            Pop: <strong style="color:#FF3131;">${s.pop.toLocaleString()}</strong>
+          </div>`);
+
+      STATE.layers.vulnMarkers.push(m);
+    });
+
+    console.log(`[HAZ-ROUTE][VulnMarkers] Placed ${sites.length} at-risk markers`);
+  } catch (err) {
+    console.error('[HAZ-ROUTE][VulnMarkers] Error rendering vulnerable markers:', err);
+  }
+}
+
+/* ============================================================
+   CORE ALGORITHM — Antidote-Aware Hospital Routing
+   ─────────────────────────────────────────────────────────
+   1. Filter hospitals that carry the required antidote.
+   2. For each capable hospital, compute Haversine distance.
+   3. Sort ascending by distance.
+   4. Draw polyline to nearest capable hospital.
+   5. Render routing results in the right panel.
+   ============================================================ */
+function runHospitalRouting(chem, incLat, incLng) {
+  try {
+    console.log(`[HAZ-ROUTE][Routing] Seeking hospitals with: "${chem.antidote_req}"`);
+
+    // Step 1 — filter by antidote capability
+    const capable = HOSPITALS.filter(h => h.hazmat_capabilities.includes(chem.antidote_req));
+    console.log(`[HAZ-ROUTE][Routing] ${capable.length}/${HOSPITALS.length} hospitals carry the required antidote`);
+
+    if (capable.length === 0) {
+      console.warn('[HAZ-ROUTE][Routing] ⚠ No capable hospitals — rendering fallback');
+      renderHospFallback(chem.antidote_req);
+      return null;
+    }
+
+    // Step 2 — compute Haversine distance for each capable hospital
+    const ranked = capable
+      .map(h => ({ ...h, km: haversine(incLat, incLng, h.lat, h.lng) }))
+      .sort((a, b) => a.km - b.km);  // Step 3 — ascending sort
+
+    const nearest = ranked[0];
+    console.log(`[HAZ-ROUTE][Routing] ✅ Nearest capable: "${nearest.name}" @ ${nearest.km.toFixed(2)}km`);
+
+    // Step 4 — draw route polyline
+    drawRoute(incLat, incLng, nearest);
+
+    // Step 5 — render hospital cards
+    renderHospCards(ranked, chem);
+
+    document.getElementById('sb-hosp').textContent =
+      nearest.name.split(' ').slice(0, 3).join(' ');
+
+    return nearest;
+  } catch (err) {
+    console.error('[HAZ-ROUTE][Routing] Hospital routing error:', err);
+    renderHospFallback('Unknown');
+    return null;
+  }
+}
+
+/* ============================================================
+   MAP — Draw route polyline to nearest capable hospital
+   ============================================================ */
+function drawRoute(incLat, incLng, hospital) {
+  try {
+    if (STATE.layers.routePolyline)  map.removeLayer(STATE.layers.routePolyline);
+    if (STATE.layers.hospitalTarget) map.removeLayer(STATE.layers.hospitalTarget);
+
+    // Animated dashed polyline
+    STATE.layers.routePolyline = L.polyline(
+      [[incLat, incLng], [hospital.lat, hospital.lng]],
+      { color:'#39FF14', weight:3, opacity:0.9, dashArray:'10 7' }
+    ).addTo(map);
+
+    // Glowing target marker
+    const ico = L.divIcon({
+      className: '',
+      html: `<div style="width:34px;height:34px;
+        background:rgba(57,255,20,0.12);border:3px solid #39FF14;border-radius:50%;
+        box-shadow:0 0 16px #39FF14;display:flex;align-items:center;justify-content:center;
+        color:#39FF14;font-size:15px;font-weight:bold;">✚</div>`,
+      iconSize:[34,34], iconAnchor:[17,17]
+    });
+
+    STATE.layers.hospitalTarget = L.marker([hospital.lat, hospital.lng], { icon:ico })
+      .addTo(map)
+      .bindTooltip(hospital.name, {
+        permanent:true, direction:'top', className:'lbl-hospital', offset:[0,-20]
+      });
+
+    // Pan/zoom to show both incident and hospital
+    map.fitBounds(
+      L.latLngBounds([[incLat, incLng],[hospital.lat, hospital.lng]]),
+      { padding:[70,70] }
+    );
+  } catch (err) {
+    console.error('[HAZ-ROUTE][Route] Failed to draw route polyline:', err);
+  }
+}
+
+/* ============================================================
+   UI — Render hospital routing cards
+   ============================================================ */
+function renderHospCards(ranked, chem) {
+  const el    = document.getElementById('hosp-content');
+  const badge = document.getElementById('hosp-badge');
+
+  badge.textContent = ranked.length;
+  badge.style.display = 'inline-flex';
+
+  el.innerHTML = `<div class="fade-in">` + ranked.map((h, i) => `
+    <div class="hosp-card ${i === 0 ? 'primary' : ''}">
+      <div class="hosp-name">
+        ${h.name}
+        <span class="trauma-badge t${h.trauma_level}">T-${h.trauma_level}</span>
+      </div>
+      <div class="hosp-type">${h.type} · ${h.address}</div>
+      <div class="hosp-dist">${h.km.toFixed(1)}<span>km straight-line</span></div>
+      <div class="hosp-caps">
+        ${h.hazmat_capabilities.map(cap => `
+          <span class="cap-tag ${cap === chem.antidote_req ? 'match' : ''}">
+            ${cap === chem.antidote_req ? '✓ ' : ''}${cap.length > 22 ? cap.slice(0,22)+'…' : cap}
+          </span>`).join('')}
+      </div>
+    </div>
+  `).join('') + `</div>`;
+}
+
+/* ============================================================
+   UI — Hospital fallback (no capable hospital found)
+   ============================================================ */
+function renderHospFallback(antidote) {
+  document.getElementById('hosp-content').innerHTML = `
+    <div class="fallback-box fade-in">
+      <i class="fas fa-triangle-exclamation"></i>
+      <strong>NO CAPABLE HOSPITAL FOUND</strong>
+      <p>No hospital in the database carries:<br/>
+         <strong style="color:var(--accent-yellow);">${antidote}</strong><br/><br/>
+         Contact Regional HazMat Coordinator.<br/>
+         Consider air transport to Level I Trauma Center.<br/>
+         Nearest: UAB Medicine, Birmingham (107km N).
+      </p>
+    </div>`;
+  document.getElementById('hosp-badge').style.display = 'none';
+}
+
+/* ============================================================
+   UI — Render vulnerable population list
+   ============================================================ */
+function renderVulnList(atRisk, total) {
+  const el    = document.getElementById('vuln-content');
+  const badge = document.getElementById('vuln-badge');
+
+  if (!atRisk.length) {
+    badge.style.display = 'none';
+    el.innerHTML = `
+      <div class="fade-in" style="text-align:center;padding:18px 0;
+        font-family:var(--font-mono);font-size:10px;color:var(--accent-green);">
+        <i class="fas fa-shield-halved" style="font-size:26px;display:block;margin-bottom:8px;"></i>
+        No vulnerable sites in danger zone.<br/>
+        <span style="color:var(--text-dim);">Checked ${total} locations.</span>
+      </div>`;
+    document.getElementById('sb-risk').textContent = '0';
+    document.getElementById('sb-risk').className   = 'msb-val green';
+    return;
+  }
+
+  badge.textContent = atRisk.length;
+  badge.style.display = 'inline-flex';
+  document.getElementById('sb-risk').textContent = atRisk.length;
+  document.getElementById('sb-risk').className   = 'msb-val red';
+
+  // Sort descending by population
+  const sorted   = [...atRisk].sort((a,b) => b.pop - a.pop);
+  const totalPop = sorted.reduce((s,l) => s+l.pop, 0);
+
+  const icoMap = { school:'🏫', nursing:'🏥', community:'🏙️', govt:'🏛️' };
+
+  el.innerHTML = `
+    <div class="fade-in">
+      <div class="sum-row" style="margin-bottom:8px;">
+        <span class="sum-lbl">Total at-risk population</span>
+        <span class="sum-val red">${totalPop.toLocaleString()}</span>
+      </div>
+      <div class="scroll-inner">
+        ${sorted.map(s => `
+          <div class="vuln-item danger">
+            <div class="vuln-ico ${s.ico}">${icoMap[s.ico] || '📍'}</div>
+            <div class="vuln-info">
+              <div class="vuln-name" title="${s.name}">${s.name}</div>
+              <div class="vuln-type">${s.type}</div>
+              <div class="vuln-pop">~${s.pop.toLocaleString()} occupants</div>
+            </div>
+            <div class="danger-tag">⚠ DANGER</div>
+          </div>`).join('')}
+      </div>
+    </div>`;
+}
+
+/* ============================================================
+   ORCHESTRATOR — Full situational analysis
+   Runs when BOTH chemical AND incident location are set.
+   ============================================================ */
+function runFullAnalysis() {
+  const chem = STATE.selectedChem;
+  const loc  = STATE.incidentLocation;
+
+  if (!chem || !loc) {
+    console.log('[HAZ-ROUTE][Analysis] Waiting — need both chemical and incident location.');
+    return;
+  }
+
+  console.log(`[HAZ-ROUTE][Analysis] ═══ RUNNING FULL ANALYSIS ═══`);
+  console.log(`[HAZ-ROUTE][Analysis] Chemical: ${chem.chemical} | Radius: ${chem.danger_radius_m}m`);
+  console.log(`[HAZ-ROUTE][Analysis] Incident: ${loc.lat.toFixed(5)}, ${loc.lng.toFixed(5)}`);
+
+  // 1 — Draw danger plume
+  drawPlume(loc.lat, loc.lng, chem.danger_radius_m);
+
+  // 2 — Spatial filter: which vulnerable sites fall inside the radius?
+  const atRisk = VULNERABLE.filter(v =>
+    pointInRadius(loc.lat, loc.lng, v.lat, v.lng, chem.danger_radius_m)
+  );
+  console.log(`[HAZ-ROUTE][Analysis] At-risk sites: ${atRisk.length}/${VULNERABLE.length}`);
+
+  // 3 — Map markers for at-risk sites
+  renderVulnMarkers(atRisk);
+
+  // 4 — Vulnerable population list
+  renderVulnList(atRisk, VULNERABLE.length);
+
+  // 5 — Antidote-aware hospital routing
+  runHospitalRouting(chem, loc.lat, loc.lng);
+
+  // 6 — Refresh chemical detail panel
+  renderChemDetail(chem);
+}
+
+/* ============================================================
+   EVENT HANDLER — Chemical card selection
+   ============================================================ */
+function selectChem(id) {
+  try {
+    const chem = CHEMICALS.find(c => c.id === id);
+    if (!chem) throw new Error(`Chemical ID "${id}" not found in database`);
+
+    STATE.selectedChem = chem;
+    console.log(`[HAZ-ROUTE][Select] Chemical selected: ${chem.chemical}`);
+
+    // Refresh card list to show selection state
+    const matches = filterChemicals(
+      document.getElementById('f-state').value,
+      document.getElementById('f-color').value,
+      document.getElementById('f-odor').value
+    );
+    renderChemCards(matches);
+    renderChemDetail(chem);
+
+    if (STATE.incidentLocation) runFullAnalysis();
+
+  } catch (err) {
+    console.error('[HAZ-ROUTE][Select] Chemical selection error:', err);
+  }
+}
+
+/* ============================================================
+   EVENT HANDLER — Filter dropdown change
+   ============================================================ */
+function onFilterChange() {
+  const state = document.getElementById('f-state').value;
+  const color = document.getElementById('f-color').value;
+  const odor  = document.getElementById('f-odor').value;
+
+  const matches = filterChemicals(state, color, odor);
+  renderChemCards(matches);
+
+  // If selected chemical no longer in filtered results, deselect
+  if (STATE.selectedChem && !matches.find(m => m.id === STATE.selectedChem.id)) {
+    console.log('[HAZ-ROUTE][Filter] Selected chemical filtered out — deselecting');
+    STATE.selectedChem = null;
+    renderChemDetail(null);
+    clearOverlays();
+    resetStatusBar();
+  }
+}
+
+/* ============================================================
+   MAP — Clear all dynamic overlays
+   ============================================================ */
+function clearOverlays() {
+  try {
+    if (STATE.layers.dangerCircle)    { map.removeLayer(STATE.layers.dangerCircle);    STATE.layers.dangerCircle   = null; }
+    if (STATE.layers.routePolyline)   { map.removeLayer(STATE.layers.routePolyline);   STATE.layers.routePolyline  = null; }
+    if (STATE.layers.hospitalTarget)  { map.removeLayer(STATE.layers.hospitalTarget);  STATE.layers.hospitalTarget = null; }
+    STATE.layers.vulnMarkers.forEach(m => map.removeLayer(m));
+    STATE.layers.vulnMarkers = [];
+  } catch (err) {
+    console.error('[HAZ-ROUTE][Overlays] Error clearing overlays:', err);
+  }
+}
+
+/* ============================================================
+   RESET — Full application reset
+   ============================================================ */
+function resetAll() {
+  console.log('[HAZ-ROUTE] ═══ FULL RESET ═══');
+
+  STATE.selectedChem     = null;
+  STATE.incidentLocation = null;
+
+  clearOverlays();
+  if (STATE.layers.incidentMarker) {
+    map.removeLayer(STATE.layers.incidentMarker);
+    STATE.layers.incidentMarker = null;
+  }
+
+  // Reset dropdowns
+  ['f-state','f-color','f-odor'].forEach(id => document.getElementById(id).value = '');
+
+  // Reset left panel
+  document.getElementById('chem-results').innerHTML = `
+    <div class="waiting-msg">
+      <i class="fas fa-flask" style="font-size:22px;display:block;margin-bottom:8px;opacity:0.3;"></i>
+      Awaiting field observations…<br/>Select indicators above to identify compound.
+    </div>`;
+  document.getElementById('match-badge').style.display = 'none';
+  document.getElementById('incident-coords').textContent = 'Awaiting map click…';
+
+  // Reset right panel
+  renderChemDetail(null);
+  document.getElementById('hosp-content').innerHTML =
+    `<div class="idle-state"><i class="fas fa-hospital"></i><p>Set incident location &amp;<br/>identify chemical to activate<br/>antidote-aware routing.</p></div>`;
+  document.getElementById('vuln-content').innerHTML =
+    `<div class="idle-state" style="padding:18px 0;"><i class="fas fa-people-group"></i><p>Vulnerable sites within<br/>the danger radius will<br/>appear here.</p></div>`;
+  document.getElementById('hosp-badge').style.display = 'none';
+  document.getElementById('vuln-badge').style.display = 'none';
+
+  // Reset map view
+  if (map) map.setView([32.3668, -86.3000], 12);
+
+  // Reset status indicators
+  resetStatusBar();
+  document.getElementById('sys-dot').classList.remove('alert');
+  document.getElementById('sys-text').textContent = 'SYSTEM NOMINAL';
+
+  console.log('[HAZ-ROUTE] Reset complete — system nominal');
+}
+
+function resetStatusBar() {
+  document.getElementById('sb-chem').textContent = '—';
+  document.getElementById('sb-rad').textContent  = '—';
+  document.getElementById('sb-inc').textContent  = 'NOT SET';
+  document.getElementById('sb-risk').textContent = '0';
+  document.getElementById('sb-risk').className   = 'msb-val';
+  document.getElementById('sb-hosp').textContent = '—';
+}
+
+/* ============================================================
+   CLOCK — Live field timestamp
+   ============================================================ */
+function tickClock() {
+  const now = new Date();
+  document.getElementById('clk-time').textContent = now.toTimeString().slice(0,8);
+  document.getElementById('clk-date').textContent =
+    now.toLocaleDateString('en-US',{month:'2-digit',day:'2-digit',year:'numeric'});
+}
+
+/* ============================================================
+   EVENT LISTENERS
+   ============================================================ */
+document.getElementById('f-state').addEventListener('change', onFilterChange);
+document.getElementById('f-color').addEventListener('change', onFilterChange);
+document.getElementById('f-odor').addEventListener('change',  onFilterChange);
+
+/* ============================================================
+   INIT — Boot sequence
+   ============================================================ */
+function init() {
+  console.log('[HAZ-ROUTE] Starting boot sequence...');
+  tickClock();
+  setInterval(tickClock, 1000);
+  initMap();
+  console.log('[HAZ-ROUTE] ✅ Boot complete. Awaiting incident data.');
+}
+
+init();
+</script>
+</body>
+</html>
